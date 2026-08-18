@@ -32,6 +32,7 @@ export function buildApp({ logging = !env.isProd } = {}) {
       env: env.nodeEnv,
       database: DB_STATES[mongoose.connection.readyState] ?? 'unknown',
       googleConfigured: Boolean(env.googleClientId),
+      commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || 'local',
       maxUploadBytes: env.maxUploadBytes,
     }),
   )
