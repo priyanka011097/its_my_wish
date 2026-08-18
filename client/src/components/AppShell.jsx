@@ -18,6 +18,7 @@ import LogoutIcon from '@mui/icons-material/LogoutRounded'
 import DashboardIcon from '@mui/icons-material/GridViewRounded'
 import { useAuth } from '../context/AuthContext'
 import ThemeToggle from './ThemeToggle'
+import NotificationBell from './NotificationBell'
 
 function Logo() {
   return (
@@ -66,6 +67,7 @@ export default function AppShell({ children, maxWidth = 'lg', toolbarExtras = nu
             </Box>
             <Box sx={{ flex: 1 }} />
             {toolbarExtras}
+            {user && <NotificationBell />}
             <ThemeToggle />
             {user ? (
               <>

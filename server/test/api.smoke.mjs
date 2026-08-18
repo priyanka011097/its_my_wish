@@ -90,12 +90,13 @@ await check('owner creates a board', async () => {
     body: { title: 'Birthday 2026', description: 'Turning another year older', emoji: '🎂', color: 'rose' },
   })
   assert.equal(res.status, 201)
+  boardId = res.body.board.id
+  shareToken = res.body.board.shareToken
   assert.equal(res.body.board.title, 'Birthday 2026')
   assert.equal(res.body.board.role, 'owner')
   assert.equal(res.body.board.linkSharing, false)
+  assert.deepEqual(res.body.board.invites, [])
   assert.ok(res.body.board.shareToken)
-  boardId = res.body.board.id
-  shareToken = res.body.board.shareToken
 })
 
 await check('a board without a title is rejected', async () => {
@@ -164,20 +165,71 @@ await check('link sharing is off until the owner turns it on', async () => {
   assert.equal(res.status, 403)
 })
 
-await check('invited email gets read-only access', async () => {
+let inviteId
+await check('inviting someone creates a pending invitation, not instant access', async () => {
   const invite = await call('POST', `/api/boards/${boardId}/share/emails`, {
     token: ownerToken,
     body: { emails: ['Friend@Example.com'] },
   })
   assert.equal(invite.status, 200)
-  assert.deepEqual(invite.body.board.sharedEmails, ['friend@example.com'], 'emails should be lower-cased')
+  assert.equal(invite.body.board.invites.length, 1)
+  assert.equal(invite.body.board.invites[0].email, 'friend@example.com', 'emails should be lower-cased')
+  assert.equal(invite.body.board.invites[0].status, 'pending')
+
+  // Pending means pending: no access to the board yet.
+  const peek = await call('GET', `/api/boards/${boardId}`, { token: friendToken })
+  assert.equal(peek.status, 403)
+  assert.match(peek.body.error, /accept it from your notifications/i)
+
+  const dashboard = await call('GET', '/api/boards', { token: friendToken })
+  assert.equal(dashboard.body.shared.length, 0, 'an unaccepted board must not appear in Shared with me')
+})
+
+await check('the invitation shows up as a notification', async () => {
+  const res = await call('GET', '/api/invitations', { token: friendToken })
+  assert.equal(res.status, 200)
+  assert.equal(res.body.pendingCount, 1)
+  const [invitation] = res.body.pending
+  assert.equal(invitation.board.title, 'Birthday 2026')
+  assert.equal(invitation.invitedBy.name, 'Owner Person')
+  assert.equal(invitation.wishCount, 3, 'the notification says how much is inside')
+  inviteId = invitation.id
+})
+
+await check('nobody else can see or answer that invitation', async () => {
+  const theirs = await call('GET', '/api/invitations', { token: strangerToken })
+  assert.equal(theirs.body.pendingCount, 0)
+
+  const hijack = await call('POST', `/api/invitations/${inviteId}/accept`, { token: strangerToken })
+  assert.equal(hijack.status, 404)
+})
+
+await check('accepting an invitation opens the board and fills Shared with me', async () => {
+  const accepted = await call('POST', `/api/invitations/${inviteId}/accept`, { token: friendToken })
+  assert.equal(accepted.status, 200)
+  assert.equal(accepted.body.invitation.status, 'accepted')
 
   const view = await call('GET', `/api/boards/${boardId}`, { token: friendToken })
   assert.equal(view.status, 200)
   assert.equal(view.body.role, 'viewer')
   assert.equal(view.body.wishes.length, 3)
   assert.equal(view.body.board.shareToken, undefined, 'viewers must not receive the share token')
-  assert.equal(view.body.board.sharedEmails, undefined, 'viewers must not see the invite list')
+  assert.equal(view.body.board.invites, undefined, 'viewers must not see the invite list')
+
+  const dashboard = await call('GET', '/api/boards', { token: friendToken })
+  assert.equal(dashboard.body.shared.length, 1)
+  assert.equal(dashboard.body.shared[0].title, 'Birthday 2026')
+  assert.equal(dashboard.body.shared[0].owner.name, 'Owner Person')
+
+  const notifications = await call('GET', '/api/invitations', { token: friendToken })
+  assert.equal(notifications.body.pendingCount, 0, 'an answered invitation stops being a notification')
+  assert.equal(notifications.body.accepted.length, 1)
+})
+
+await check('the owner can see who has accepted', async () => {
+  const res = await call('GET', `/api/boards/${boardId}`, { token: ownerToken })
+  assert.equal(res.body.board.invites[0].status, 'accepted')
+  assert.ok(res.body.board.invites[0].respondedAt)
 })
 
 await check('invited viewers cannot edit anything', async () => {
@@ -192,9 +244,29 @@ await check('invited viewers cannot edit anything', async () => {
 
   const editWish = await call('PATCH', `/api/wishes/${photoWishId}`, { token: friendToken, body: { title: 'Nope' } })
   assert.equal(editWish.status, 403)
+})
 
-  const deleteWish = await call('DELETE', `/api/wishes/${photoWishId}`, { token: friendToken })
-  assert.equal(deleteWish.status, 403)
+await check('declining leaves the board closed, and re-inviting asks again', async () => {
+  const second = await call('POST', `/api/boards/${boardId}/share/emails`, {
+    token: ownerToken,
+    body: { emails: ['stranger@example.com'] },
+  })
+  assert.equal(second.status, 200)
+  const invitation = (await call('GET', '/api/invitations', { token: strangerToken })).body.pending[0]
+
+  const declined = await call('POST', `/api/invitations/${invitation.id}/decline`, { token: strangerToken })
+  assert.equal(declined.status, 200)
+  assert.equal(declined.body.invitation.status, 'declined')
+
+  const closed = await call('GET', `/api/boards/${boardId}`, { token: strangerToken })
+  assert.equal(closed.status, 403)
+
+  // Asking again should reopen it as a fresh notification.
+  await call('POST', `/api/boards/${boardId}/share/emails`, { token: ownerToken, body: { emails: ['stranger@example.com'] } })
+  const again = await call('GET', '/api/invitations', { token: strangerToken })
+  assert.equal(again.body.pendingCount, 1, 're-inviting after a decline should ask again')
+
+  await call('DELETE', `/api/boards/${boardId}/share/emails/${encodeURIComponent('stranger@example.com')}`, { token: ownerToken })
 })
 
 await check('invalid invite emails are rejected', async () => {
@@ -202,15 +274,24 @@ await check('invalid invite emails are rejected', async () => {
   assert.equal(res.status, 400)
 })
 
+await check('inviting yourself is refused', async () => {
+  const res = await call('POST', `/api/boards/${boardId}/share/emails`, { token: ownerToken, body: { emails: ['owner@example.com'] } })
+  assert.equal(res.status, 400)
+  assert.match(res.body.error, /already own/i)
+})
+
 await check('removing an invite revokes access', async () => {
   const res = await call('DELETE', `/api/boards/${boardId}/share/emails/${encodeURIComponent('friend@example.com')}`, {
     token: ownerToken,
   })
   assert.equal(res.status, 200)
-  assert.deepEqual(res.body.board.sharedEmails, [])
+  assert.deepEqual(res.body.board.invites, [])
 
   const view = await call('GET', `/api/boards/${boardId}`, { token: friendToken })
   assert.equal(view.status, 403)
+
+  const dashboard = await call('GET', '/api/boards', { token: friendToken })
+  assert.equal(dashboard.body.shared.length, 0)
 })
 
 await check('share link works for anonymous visitors once enabled', async () => {

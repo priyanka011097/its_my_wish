@@ -10,6 +10,7 @@ import AddIcon from '@mui/icons-material/AddRounded'
 import SearchIcon from '@mui/icons-material/SearchRounded'
 import { endpoints } from '../api/client'
 import { useAuth } from '../context/AuthContext'
+import { useInvitations } from '../context/InvitationsContext'
 import { useToast } from '../context/ToastContext'
 import AppShell from '../components/AppShell'
 import BoardCard from '../components/BoardCard'
@@ -17,6 +18,7 @@ import BoardDialog from '../components/BoardDialog'
 import ShareDialog from '../components/ShareDialog'
 import ConfirmDialog from '../components/ConfirmDialog'
 import EmptyState from '../components/EmptyState'
+import InvitationCard from '../components/InvitationCard'
 
 const gridSx = {
   display: 'grid',
@@ -37,6 +39,7 @@ function BoardGridSkeleton() {
 export default function DashboardPage() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const { pending, accept, decline, acceptedAt } = useInvitations()
   const [boards, setBoards] = useState({ owned: [], shared: [] })
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -58,7 +61,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load()
-  }, [load])
+  }, [load, acceptedAt])
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -117,11 +120,13 @@ export default function DashboardPage() {
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4">Hi {user?.name?.split(' ')[0] || 'there'} 👋</Typography>
           <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-            {boards.owned.length
-              ? `${boards.owned.length} wishlist${boards.owned.length === 1 ? '' : 's'} of your own${
-                  boards.shared.length ? ` · ${boards.shared.length} shared with you` : ''
-                }`
-              : 'Create your first wishlist board to get going.'}
+            {pending.length
+              ? `${pending.length} invitation${pending.length === 1 ? '' : 's'} waiting for you`
+              : boards.owned.length
+                ? `${boards.owned.length} wishlist${boards.owned.length === 1 ? '' : 's'} of your own${
+                    boards.shared.length ? ` · ${boards.shared.length} shared with you` : ''
+                  }`
+                : 'Create your first wishlist board to get going.'}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5} sx={{ width: { xs: '100%', sm: 'auto' } }}>
@@ -143,6 +148,19 @@ export default function DashboardPage() {
           </Button>
         </Stack>
       </Stack>
+
+      {pending.length > 0 && (
+        <Box sx={{ mb: 5 }}>
+          <Typography variant="overline" color="text.secondary">
+            Waiting for you
+          </Typography>
+          <Box sx={{ ...gridSx, mt: 1.5 }}>
+            {pending.map((invitation) => (
+              <InvitationCard key={invitation.id} invitation={invitation} onAccept={accept} onDecline={decline} />
+            ))}
+          </Box>
+        </Box>
+      )}
 
       {loading ? (
         <BoardGridSkeleton />
@@ -187,24 +205,33 @@ export default function DashboardPage() {
             </Box>
           </Box>
 
-          {boards.shared.length > 0 && (
-            <Box>
-              <Typography variant="overline" color="text.secondary">
-                Shared with me
-              </Typography>
-              <Box sx={{ mt: 1.5 }}>
-                {filtered.shared.length ? (
-                  <Box sx={gridSx}>
-                    {filtered.shared.map((board) => (
-                      <BoardCard key={board.id} board={board} />
-                    ))}
-                  </Box>
-                ) : (
-                  <EmptyState dense icon="🔍" title="Nothing shared matches that search" />
-                )}
-              </Box>
+          <Box>
+            <Typography variant="overline" color="text.secondary">
+              Shared with me
+            </Typography>
+            <Box sx={{ mt: 1.5 }}>
+              {filtered.shared.length ? (
+                <Box sx={gridSx}>
+                  {filtered.shared.map((board) => (
+                    <BoardCard key={board.id} board={board} />
+                  ))}
+                </Box>
+              ) : boards.shared.length ? (
+                <EmptyState dense icon="🔍" title="Nothing shared matches that search" />
+              ) : (
+                <EmptyState
+                  dense
+                  icon="🤝"
+                  title="No shared wishlists yet"
+                  description={
+                    pending.length
+                      ? 'Accept an invitation above and the wishlist will appear here.'
+                      : 'When someone invites you to their wishlist, you will get a notification - accept it and the wishlist lands here.'
+                  }
+                />
+              )}
             </Box>
-          )}
+          </Box>
         </Stack>
       )}
 

@@ -1,4 +1,5 @@
 import { Board } from '../models/Board.js'
+import { Invitation } from '../models/Invitation.js'
 import { forbidden, notFound } from './errors.js'
 
 export const OWNER = 'owner'
@@ -6,7 +7,9 @@ export const VIEWER = 'viewer'
 
 /**
  * Resolves how the caller may use a board.
- * A signed-in owner gets full control; invited emails and valid share links get read-only access.
+ * The owner gets full control; an accepted invitation or a valid share link gets
+ * read-only access. A pending invitation deliberately grants nothing yet - it has
+ * to be accepted from the notification bell first.
  */
 export async function loadBoardFor(req, { boardId, shareToken, populateOwner = false } = {}) {
   const query = boardId ? Board.findById(boardId) : Board.findOne({ shareToken })
@@ -21,10 +24,16 @@ export async function loadBoardFor(req, { boardId, shareToken, populateOwner = f
   const token = shareToken || req.query.token
   if (token && token === board.shareToken && board.linkSharing) return { board, role: VIEWER }
 
-  if (user && board.sharedEmails.includes(user.email)) return { board, role: VIEWER }
+  if (user) {
+    const invitation = await Invitation.findOne({ board: board.id, email: user.email })
+    if (invitation?.status === 'accepted') return { board, role: VIEWER }
+    if (invitation?.status === 'pending') {
+      throw forbidden('You have an invitation to this wishlist - accept it from your notifications first')
+    }
+    throw forbidden('This wishlist has not been shared with you')
+  }
 
-  if (!user) throw forbidden('Sign in with an invited account, or ask for a share link')
-  throw forbidden('This wishlist has not been shared with you')
+  throw forbidden('Sign in with an invited account, or ask for a share link')
 }
 
 export async function loadOwnedBoard(req, boardId) {

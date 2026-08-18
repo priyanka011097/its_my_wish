@@ -12,6 +12,7 @@ import authRoutes from './routes/auth.routes.js'
 import boardRoutes from './routes/board.routes.js'
 import wishRoutes from './routes/wish.routes.js'
 import shareRoutes from './routes/share.routes.js'
+import invitationRoutes from './routes/invitation.routes.js'
 import metaRoutes from './routes/meta.routes.js'
 import uploadRoutes from './routes/upload.routes.js'
 
@@ -45,6 +46,7 @@ export function buildApp({ logging = !env.isProd } = {}) {
   app.use('/api/boards', boardRoutes)
   app.use('/api/wishes', wishRoutes)
   app.use('/api/share', shareRoutes)
+  app.use('/api/invitations', invitationRoutes)
   app.use('/api/meta', metaRoutes)
   app.use('/api/uploads', uploadRoutes)
 

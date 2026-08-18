@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Avatar from '@mui/material/Avatar'
+import Chip from '@mui/material/Chip'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Dialog from '@mui/material/Dialog'
@@ -26,6 +27,9 @@ import PersonAddIcon from '@mui/icons-material/PersonAddAlt1Rounded'
 import RefreshIcon from '@mui/icons-material/AutorenewRounded'
 import { endpoints } from '../api/client'
 import { useToast } from '../context/ToastContext'
+
+const STATUS_LABEL = { pending: 'Waiting for them to accept', accepted: 'Accepted', declined: 'Declined' }
+const STATUS_COLOR = { pending: 'warning', accepted: 'success', declined: 'default' }
 
 /**
  * Two ways to share a board: invite specific Google accounts by email,
@@ -64,7 +68,7 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
     if (!value) return
     await run(
       () => endpoints.addShareEmails(board.id, value.split(/[,\s;]+/).filter(Boolean)),
-      'Invited - they can see this wishlist once they sign in',
+      'Invitation sent - it appears in their notifications',
     )
     setEmailInput('')
   }
@@ -83,7 +87,8 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
       <DialogTitle>
         Share &ldquo;{board.title}&rdquo;
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          People you share with can view the wishlist, but only you can change it.
+          Invited people get a notification and can accept or decline. Once accepted, the wishlist appears in
+          their &ldquo;Shared with me&rdquo; space - view only, since only you can change it.
         </Typography>
       </DialogTitle>
 
@@ -96,7 +101,7 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
             onChange={(e) => setEmailInput(e.target.value)}
             fullWidth
             disabled={busy}
-            helperText="They sign in with Google using this address to see the list"
+            helperText="They get a notification in the app and choose whether to accept"
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -109,11 +114,11 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
           />
         </Box>
 
-        {board.sharedEmails?.length > 0 ? (
+        {board.invites?.length > 0 ? (
           <List dense sx={{ mt: 1 }}>
-            {board.sharedEmails.map((email) => (
+            {board.invites.map((invite) => (
               <ListItem
-                key={email}
+                key={invite.email}
                 sx={{ borderRadius: 2, '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.06) } }}
                 secondaryAction={
                   <Tooltip title="Remove access">
@@ -121,7 +126,7 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
                       edge="end"
                       size="small"
                       disabled={busy}
-                      onClick={() => run(() => endpoints.removeShareEmail(board.id, email), `Removed ${email}`)}
+                      onClick={() => run(() => endpoints.removeShareEmail(board.id, invite.email), `Removed ${invite.email}`)}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>
@@ -129,9 +134,22 @@ export default function ShareDialog({ open, board, onClose, onBoardChange }) {
                 }
               >
                 <ListItemAvatar sx={{ minWidth: 40 }}>
-                  <Avatar sx={{ width: 28, height: 28, fontSize: 13 }}>{email[0]?.toUpperCase()}</Avatar>
+                  <Avatar sx={{ width: 28, height: 28, fontSize: 13 }}>{invite.email[0]?.toUpperCase()}</Avatar>
                 </ListItemAvatar>
-                <ListItemText primary={email} primaryTypographyProps={{ variant: 'body2' }} />
+                <ListItemText
+                  primary={invite.email}
+                  primaryTypographyProps={{ variant: 'body2' }}
+                  secondary={
+                    <Chip
+                      size="small"
+                      variant={invite.status === 'accepted' ? 'filled' : 'outlined'}
+                      color={STATUS_COLOR[invite.status]}
+                      label={STATUS_LABEL[invite.status]}
+                      sx={{ mt: 0.25, height: 20, fontSize: 11 }}
+                    />
+                  }
+                  secondaryTypographyProps={{ component: 'div' }}
+                />
               </ListItem>
             ))}
           </List>

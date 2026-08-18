@@ -13,7 +13,7 @@ its-my-wish/
 ├── server/          Express + Mongoose API
 │   ├── src/
 │   │   ├── config/  env + mongo connection
-│   │   ├── models/  User, Board, Wish
+│   │   ├── models/  User, Board, Wish, Invitation
 │   │   ├── lib/     auth (Google + JWT), access rules, validation
 │   │   └── routes/  auth, boards, wishes, share, link preview
 │   └── test/        end-to-end API smoke test
@@ -83,6 +83,7 @@ Other scripts:
 | `npm run db` | local MongoDB only, data kept in `server/.data/mongodb` |
 | `npm run dev:api` / `npm run dev:web` | run one side only |
 | `npm test` | API smoke test against a throwaway in-memory MongoDB |
+| `npm run migrate --workspace server` | one-off: turn pre-invitation `sharedEmails` into accepted invitations |
 | `npm run build` | production client build into `client/dist` |
 | `npm start` | serve API **and** the built client from port 4000 (`NODE_ENV=production`) |
 
@@ -126,15 +127,21 @@ bucket or Cloudinary account to set up and nothing extra to back up.
 - when a wish is deleted, or its image swapped for another, the old file is removed from GridFS
   rather than left orphaned
 
-**Sharing.** Two independent switches per board:
+**Sharing.** Two independent mechanisms per board:
 
-- *Invite by email* — the listed addresses see the board on their own dashboard after signing in
-  with that Google account.
-- *Share with a link* — `/s/<token>` is readable by anyone, no sign-in. Resetting the link mints a
-  new token and instantly kills the old one.
+- *Invite by email* — an **invitation**, not instant access. The invited account gets a notification
+  (the bell in the header, plus a card on their dashboard) and chooses to accept or decline. Only on
+  accept does the wishlist appear in their **Shared with me** space; a pending invite grants nothing.
+  Declining is not final — inviting again asks afresh. The owner sees each invite's status
+  (waiting / accepted / declined) in the share dialog.
+- *Share with a link* — `/s/<token>` is readable by anyone, no sign-in, no acceptance step. Resetting
+  the link mints a new token and instantly kills the old one.
 
 Either way, sharing is **read-only** — only the owner can add, edit or delete. Viewers never receive
 the share token or the invite list in API responses.
+
+Invitations are in-app only; nothing is emailed, so there is no SMTP service to configure. The
+notification list is polled once a minute and whenever the tab regains focus.
 
 **Theme.** Light, dark, or match-system, chosen from the sun/moon menu in the header and remembered
 in `localStorage`. Palettes live in `client/src/theme/theme.js`.
@@ -151,8 +158,12 @@ in `localStorage`. Palettes live in `client/src/theme/theme.js`.
 | `POST` | `/api/boards` | signed in |
 | `GET` | `/api/boards/:id` | owner, invited email, or `?token=` |
 | `PATCH` `DELETE` | `/api/boards/:id` | owner |
-| `POST` `PUT` | `/api/boards/:id/share/emails` | owner |
-| `DELETE` | `/api/boards/:id/share/emails/:email` | owner |
+| `POST` `PUT` | `/api/boards/:id/share/emails` | owner — sends invitations |
+| `DELETE` | `/api/boards/:id/share/emails/:email` | owner — revokes |
+| `GET` | `/api/invitations` | signed in — `{ pending, accepted, pendingCount }` |
+| `POST` | `/api/invitations/:id/accept` | the invited account |
+| `POST` | `/api/invitations/:id/decline` | the invited account |
+| `DELETE` | `/api/invitations/:id` | the invited account — leave a shared wishlist |
 | `POST` | `/api/boards/:id/share/link` | owner — `{ enabled }` / `{ regenerate }` |
 | `GET` `POST` | `/api/boards/:id/wishes` | read: any viewer · write: owner |
 | `PATCH` `DELETE` | `/api/wishes/:id` | owner |

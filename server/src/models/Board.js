@@ -14,8 +14,7 @@ const boardSchema = new mongoose.Schema(
     description: { type: String, default: '', trim: true, maxlength: 500 },
     emoji: { type: String, default: '🎁', maxlength: 8 },
     color: { type: String, enum: BOARD_COLORS, default: 'violet' },
-    // Who can see it besides the owner
-    sharedEmails: { type: [{ type: String, lowercase: true, trim: true }], default: [] },
+    // Who may see it besides the owner lives in the Invitation collection.
     // Anyone-with-the-link access
     linkSharing: { type: Boolean, default: false },
     shareToken: { type: String, default: newShareToken, unique: true, index: true },
@@ -24,9 +23,14 @@ const boardSchema = new mongoose.Schema(
 )
 
 boardSchema.index({ owner: 1, createdAt: -1 })
-boardSchema.index({ sharedEmails: 1 })
+
+const OWNER_ONLY_FIELDS = ['invites', 'linkSharing', 'shareToken']
 
 boardSchema.methods.toJSONFor = function toJSONFor(role, extra = {}) {
+  const safeExtra =
+    role === 'owner'
+      ? extra
+      : Object.fromEntries(Object.entries(extra).filter(([key]) => !OWNER_ONLY_FIELDS.includes(key)))
   const base = {
     id: this.id,
     title: this.title,
@@ -36,12 +40,11 @@ boardSchema.methods.toJSONFor = function toJSONFor(role, extra = {}) {
     role,
     createdAt: this.createdAt,
     updatedAt: this.updatedAt,
-    ...extra,
+    ...safeExtra,
   }
   const ownerDoc = this.populated('owner') ? this.owner : null
   if (ownerDoc) base.owner = { name: ownerDoc.name, email: ownerDoc.email, picture: ownerDoc.picture }
   if (role === 'owner') {
-    base.sharedEmails = this.sharedEmails
     base.linkSharing = this.linkSharing
     base.shareToken = this.shareToken
   }

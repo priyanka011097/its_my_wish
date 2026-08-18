@@ -104,9 +104,11 @@ export default function BoardCard({ board, onEdit, onShare, onDelete }) {
                 <Chip size="small" variant="outlined" icon={<LinkIcon />} label="Link" />
               </Tooltip>
             )}
-            {isOwner && board.sharedEmails?.length > 0 && (
-              <Tooltip title={board.sharedEmails.join(', ')}>
-                <Chip size="small" variant="outlined" icon={<PeopleIcon />} label={board.sharedEmails.length} />
+            {isOwner && board.invites?.length > 0 && (
+              <Tooltip
+                title={board.invites.map((invite) => `${invite.email} (${invite.status})`).join(', ')}
+              >
+                <Chip size="small" variant="outlined" icon={<PeopleIcon />} label={board.invites.length} />
               </Tooltip>
             )}
             {!isOwner && board.owner && (

@@ -8,7 +8,8 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "test": "node test/api.smoke.mjs",
-    "db": "node scripts/local-db.mjs"
+    "db": "node scripts/local-db.mjs",
+    "migrate": "node scripts/migrate-invitations.mjs"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",

@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { ColorModeProvider } from './theme/ColorModeProvider'
 import { ToastProvider } from './context/ToastContext'
 import { AuthProvider } from './context/AuthContext'
+import { InvitationsProvider } from './context/InvitationsContext'
 import App from './App'
 
 createRoot(document.getElementById('root')).render(
@@ -12,7 +13,9 @@ createRoot(document.getElementById('root')).render(
       <ToastProvider>
         <BrowserRouter>
           <AuthProvider>
-            <App />
+            <InvitationsProvider>
+              <App />
+            </InvitationsProvider>
           </AuthProvider>
         </BrowserRouter>
       </ToastProvider>

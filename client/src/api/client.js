@@ -84,6 +84,7 @@ export const endpoints = {
   deleteBoard: (id) => api.del(`/api/boards/${id}`),
 
   addShareEmails: (id, emails) => api.post(`/api/boards/${id}/share/emails`, { emails }),
+  setShareEmails: (id, emails) => api.put(`/api/boards/${id}/share/emails`, { emails }),
   removeShareEmail: (id, email) => api.del(`/api/boards/${id}/share/emails/${encodeURIComponent(email)}`),
   setLinkSharing: (id, data) => api.post(`/api/boards/${id}/share/link`, data),
 
@@ -92,6 +93,11 @@ export const endpoints = {
   deleteWish: (id) => api.del(`/api/wishes/${id}`),
 
   sharedBoard: (token) => api.get(`/api/share/${token}`),
+
+  listInvitations: () => api.get('/api/invitations'),
+  acceptInvitation: (id) => api.post(`/api/invitations/${id}/accept`),
+  declineInvitation: (id) => api.post(`/api/invitations/${id}/decline`),
+  leaveBoard: (id) => api.del(`/api/invitations/${id}`),
   linkPreview: (url) => api.get('/api/meta/preview', { params: { url } }),
   uploadImage: (file, options) => api.upload('/api/uploads', file, options),
 }

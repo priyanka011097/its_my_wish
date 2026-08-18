@@ -128,9 +128,14 @@ export default function BoardView({
                 sx={{ bgcolor: alpha(accent, 0.16), color: accent }}
               />
               {canEdit && board.linkSharing && <Chip size="small" variant="outlined" icon={<LinkIcon />} label="Link sharing on" />}
-              {canEdit && board.sharedEmails?.length > 0 && (
-                <Tooltip title={board.sharedEmails.join(', ')}>
-                  <Chip size="small" variant="outlined" icon={<PeopleIcon />} label={`${board.sharedEmails.length} invited`} />
+              {canEdit && board.invites?.length > 0 && (
+                <Tooltip title={board.invites.map((invite) => `${invite.email} (${invite.status})`).join(', ')}>
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    icon={<PeopleIcon />}
+                    label={`${board.invites.filter((i) => i.status === 'accepted').length}/${board.invites.length} accepted`}
+                  />
                 </Tooltip>
               )}
               {!canEdit && board.owner && (
