@@ -8,7 +8,7 @@ One npm workspace root, so a single `npm install` covers everything:
 
 ```
 its-my-wish/
-├── api/index.js     Vercel serverless entry (wraps the Express app)
+├── api/             Vercel serverless entry (catch-all, wraps the Express app)
 ├── vercel.json      build + routing for Vercel
 ├── server/          Express + Mongoose API
 │   ├── src/
@@ -164,7 +164,7 @@ in `localStorage`. Palettes live in `client/src/theme/theme.js`.
 ## Deploying to Vercel
 
 The repo is set up for it: `vercel.json` builds the client as a static site and runs the Express API
-as one serverless function ([api/index.js](api/index.js)), both on the same domain — so the session
+as one serverless function (`api/[[...path]].js`), both on the same domain — so the session
 cookie needs no special handling.
 
 1. **Import the repo** in Vercel. Leave the build settings alone; `vercel.json` supplies them
