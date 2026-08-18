@@ -14,15 +14,23 @@ export function AuthProvider({ children }) {
   const [googleClientId, setGoogleClientId] = useState('')
   const [maxUploadBytes, setMaxUploadBytes] = useState(4 * 1024 * 1024)
   const [status, setStatus] = useState('loading') // loading | ready
+  const [configError, setConfigError] = useState('')
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       const [config, me] = await Promise.all([
-        endpoints.config().catch(() => null),
+        endpoints.config().catch((err) => err),
         endpoints.me().catch(() => null),
       ])
       if (cancelled) return
+      // A failed /api/config means the API is unreachable - a different problem
+      // from the API answering with no Google client id configured.
+      if (config instanceof Error) {
+        setConfigError(config.message || 'The API did not respond')
+        setStatus('ready')
+        return
+      }
       setGoogleClientId(config?.googleClientId || '')
       if (config?.maxUploadBytes) setMaxUploadBytes(config.maxUploadBytes)
       setUser(me?.user || null)
@@ -45,8 +53,17 @@ export function AuthProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, googleClientId, maxUploadBytes, status, loading: status === 'loading', loginWithGoogle, logout }),
-    [user, googleClientId, maxUploadBytes, status, loginWithGoogle, logout],
+    () => ({
+      user,
+      googleClientId,
+      maxUploadBytes,
+      configError,
+      status,
+      loading: status === 'loading',
+      loginWithGoogle,
+      logout,
+    }),
+    [user, googleClientId, maxUploadBytes, configError, status, loginWithGoogle, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

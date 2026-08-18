@@ -4,6 +4,7 @@ import express from 'express'
 import cors from 'cors'
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
+import mongoose from 'mongoose'
 import { env } from './config/env.js'
 import { optionalAuth } from './lib/auth.js'
 import { asyncHandler, errorHandler, notFound } from './lib/errors.js'
@@ -24,7 +25,16 @@ export function buildApp({ logging = !env.isProd } = {}) {
   app.use(cookieParser())
   if (logging) app.use(morgan('dev'))
 
-  app.get('/api/health', (_req, res) => res.json({ ok: true, env: env.nodeEnv }))
+  const DB_STATES = ['disconnected', 'connected', 'connecting', 'disconnecting']
+  app.get('/api/health', (_req, res) =>
+    res.json({
+      ok: true,
+      env: env.nodeEnv,
+      database: DB_STATES[mongoose.connection.readyState] ?? 'unknown',
+      googleConfigured: Boolean(env.googleClientId),
+      maxUploadBytes: env.maxUploadBytes,
+    }),
+  )
   app.get('/api/config', (_req, res) =>
     res.json({ googleClientId: env.googleClientId, maxUploadBytes: env.maxUploadBytes }),
   )

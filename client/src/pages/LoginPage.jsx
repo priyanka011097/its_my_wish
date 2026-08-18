@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { GoogleLogin } from '@react-oauth/google'
 import Alert from '@mui/material/Alert'
+import AlertTitle from '@mui/material/AlertTitle'
 import Box from '@mui/material/Box'
 import Container from '@mui/material/Container'
 import Paper from '@mui/material/Paper'
@@ -26,10 +27,11 @@ const FEATURES = [
 export default function LoginPage() {
   const theme = useTheme()
   const { mode } = useColorMode()
-  const { user, googleClientId, loginWithGoogle } = useAuth()
+  const { user, googleClientId, configError, loginWithGoogle } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState('')
+  const isLocal = ['localhost', '127.0.0.1'].includes(window.location.hostname)
 
   if (user) return <Navigate to={location.state?.from?.pathname || '/'} replace />
 
@@ -144,10 +146,26 @@ export default function LoginPage() {
                   width="260"
                 />
               </Box>
+            ) : configError ? (
+              <Alert severity="error" sx={{ textAlign: 'left' }}>
+                <AlertTitle>Cannot reach the API</AlertTitle>
+                {configError}
+                {isLocal ? (
+                  <> Start it with <code>npm run dev:all</code>.</>
+                ) : (
+                  <> Check the deployment&apos;s function logs, and that <code>/api/health</code> responds.</>
+                )}
+              </Alert>
             ) : (
               <Alert severity="warning" sx={{ textAlign: 'left' }}>
-                Google sign-in is not configured yet. Add <code>GOOGLE_CLIENT_ID</code> to <code>server/.env</code> and
-                restart the API.
+                <AlertTitle>Google sign-in is not configured</AlertTitle>
+                The API is running but reported no <code>GOOGLE_CLIENT_ID</code>.
+                {isLocal ? (
+                  <> Add it to <code>server/.env</code> and restart the API.</>
+                ) : (
+                  <> Add it to this deployment&apos;s environment variables, then redeploy &mdash; new variables do not
+                    apply to an existing deployment.</>
+                )}
               </Alert>
             )}
 
