@@ -41,7 +41,7 @@ export default function LoginPage() {
       await loginWithGoogle(response.credential)
       navigate(location.state?.from?.pathname || '/', { replace: true })
     } catch (err) {
-      setError(err.message)
+      setError(err.status ? `${err.message} (HTTP ${err.status})` : err.message)
     }
   }
 
@@ -138,7 +138,12 @@ export default function LoginPage() {
               <Box sx={{ display: 'grid', placeItems: 'center', minHeight: 44 }}>
                 <GoogleLogin
                   onSuccess={handleCredential}
-                  onError={() => setError('Google sign-in was cancelled or blocked')}
+                  onError={() =>
+                  setError(
+                    'Google did not return a sign-in. If this deployment is new, add its origin ' +
+                      `(${window.location.origin}) to the OAuth client's authorised JavaScript origins.`,
+                  )
+                }
                   theme={mode === 'dark' ? 'filled_black' : 'outline'}
                   shape="pill"
                   size="large"

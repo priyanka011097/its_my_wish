@@ -43,7 +43,18 @@ export function AuthProvider({ children }) {
 
   const loginWithGoogle = useCallback(async (credential) => {
     const { user: signedIn } = await endpoints.googleLogin(credential)
-    setUser(signedIn)
+
+    // The sign-in worked, but it is only useful if the session cookie stuck.
+    // Checking now turns a silently dropped cookie into a message that says so.
+    const check = await endpoints.me().catch((err) => err)
+    if (check instanceof Error) {
+      throw new Error(
+        `Signed in as ${signedIn.email}, but the session was not kept (${check.message}). ` +
+          'A browser blocking cookies for this site would do that.',
+      )
+    }
+
+    setUser(check.user || signedIn)
     return signedIn
   }, [])
 
