@@ -7,7 +7,8 @@
  * instead of opening a new one per request, which is what exhausts an Atlas
  * connection limit.
  *
- * The filename is an optional catch-all so every /api/* path reaches this one
+ * The filename is a catch-all ([...path].js, the form Vercel Functions documents -
+ * double brackets are a Next.js convention) so every /api/* path reaches this one
  * function with its original URL, which is what the Express routes match on. A
  * `rewrites` entry pointing at the file instead would hand Express the literal
  * destination path, and every route would 404.

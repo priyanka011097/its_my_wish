@@ -164,7 +164,7 @@ in `localStorage`. Palettes live in `client/src/theme/theme.js`.
 ## Deploying to Vercel
 
 The repo is set up for it: `vercel.json` builds the client as a static site and runs the Express API
-as one serverless function (`api/[[...path]].js`), both on the same domain — so the session
+as one serverless function (`api/[...path].js`), both on the same domain — so the session
 cookie needs no special handling.
 
 1. **Import the repo** in Vercel. Leave the build settings alone; `vercel.json` supplies them
