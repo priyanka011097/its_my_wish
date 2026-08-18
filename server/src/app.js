@@ -25,7 +25,9 @@ export function buildApp({ logging = !env.isProd } = {}) {
   if (logging) app.use(morgan('dev'))
 
   app.get('/api/health', (_req, res) => res.json({ ok: true, env: env.nodeEnv }))
-  app.get('/api/config', (_req, res) => res.json({ googleClientId: env.googleClientId }))
+  app.get('/api/config', (_req, res) =>
+    res.json({ googleClientId: env.googleClientId, maxUploadBytes: env.maxUploadBytes }),
+  )
 
   app.use('/api', asyncHandler(optionalAuth))
   app.use('/api/auth', authRoutes)
@@ -37,8 +39,8 @@ export function buildApp({ logging = !env.isProd } = {}) {
 
   app.use('/api', (_req, _res, next) => next(notFound('No such endpoint')))
 
-  // In production the built client is served from the same origin as the API.
-  if (env.isProd) {
+  // Single-process deploys serve the built client from the same origin as the API.
+  if (env.serveClient) {
     const clientDist = path.resolve(fileURLToPath(new URL('../../client/dist', import.meta.url)))
     app.use(express.static(clientDist))
     app.get('*', (_req, res) => res.sendFile(path.join(clientDist, 'index.html')))

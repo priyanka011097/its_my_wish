@@ -12,6 +12,7 @@ export const useAuth = () => useContext(AuthContext)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [googleClientId, setGoogleClientId] = useState('')
+  const [maxUploadBytes, setMaxUploadBytes] = useState(4 * 1024 * 1024)
   const [status, setStatus] = useState('loading') // loading | ready
 
   useEffect(() => {
@@ -23,6 +24,7 @@ export function AuthProvider({ children }) {
       ])
       if (cancelled) return
       setGoogleClientId(config?.googleClientId || '')
+      if (config?.maxUploadBytes) setMaxUploadBytes(config.maxUploadBytes)
       setUser(me?.user || null)
       setStatus('ready')
     })()
@@ -43,8 +45,8 @@ export function AuthProvider({ children }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, googleClientId, status, loading: status === 'loading', loginWithGoogle, logout }),
-    [user, googleClientId, status, loginWithGoogle, logout],
+    () => ({ user, googleClientId, maxUploadBytes, status, loading: status === 'loading', loginWithGoogle, logout }),
+    [user, googleClientId, maxUploadBytes, status, loginWithGoogle, logout],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

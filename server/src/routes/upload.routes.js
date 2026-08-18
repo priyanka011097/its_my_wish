@@ -3,7 +3,7 @@ import multer from 'multer'
 import rateLimit from 'express-rate-limit'
 import { requireAuth } from '../lib/auth.js'
 import { asyncHandler, badRequest, notFound } from '../lib/errors.js'
-import { MAX_UPLOAD_BYTES, findUpload, openUploadStream, saveUpload } from '../lib/uploads.js'
+import { MAX_UPLOAD_BYTES, findUpload, formatLimit, openUploadStream, saveUpload } from '../lib/uploads.js'
 
 const router = Router()
 
@@ -27,7 +27,7 @@ router.post(
     upload.single('file')(req, res, (err) => {
       if (!err) return next()
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return next(badRequest(`Images must be ${MAX_UPLOAD_BYTES / 1024 / 1024}MB or smaller`, { field: 'file' }))
+        return next(badRequest(`Images must be ${formatLimit()} or smaller`, { field: 'file' }))
       }
       next(err)
     }),

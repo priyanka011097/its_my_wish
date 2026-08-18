@@ -1,14 +1,17 @@
 import crypto from 'node:crypto'
 import mongoose from 'mongoose'
+import { env } from '../config/env.js'
 import { badRequest } from './errors.js'
 
 export const UPLOAD_BUCKET = 'uploads'
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+export const MAX_UPLOAD_BYTES = env.maxUploadBytes
 export const UPLOAD_PATH_PREFIX = '/api/uploads/'
 
 // Tokens, not ObjectIds, are what appear in image URLs: ObjectIds embed a
 // timestamp and counter, so they can be guessed. These cannot.
 const TOKEN_RE = /^[A-Za-z0-9_-]{16,64}$/
+
+export const formatLimit = () => `${+(MAX_UPLOAD_BYTES / 1024 / 1024).toFixed(1)}MB`
 
 export const isUploadUrl = (value) => typeof value === 'string' && value.startsWith(UPLOAD_PATH_PREFIX)
 
@@ -56,7 +59,7 @@ export async function saveUpload({ buffer, originalName, ownerId }) {
     })
   }
   if (buffer.length > MAX_UPLOAD_BYTES) {
-    throw badRequest(`Images must be ${MAX_UPLOAD_BYTES / 1024 / 1024}MB or smaller`, { field: 'file' })
+    throw badRequest(`Images must be ${formatLimit()} or smaller`, { field: 'file' })
   }
 
   const token = crypto.randomBytes(24).toString('base64url')

@@ -5,16 +5,23 @@
   "description": "It's My Wish - custom wishlist boards shared by email or link",
   "scripts": {
     "dev": "concurrently -n api,web -c magenta,cyan \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:api": "npm --prefix server run dev",
-    "dev:web": "npm --prefix client run dev",
-    "build": "npm --prefix client run build",
-    "start": "npm --prefix server start",
-    "install:all": "npm install && npm --prefix server install && npm --prefix client install",
-    "test": "npm --prefix server test",
-    "db": "npm --prefix server run db",
-    "dev:all": "concurrently -n db,api,web -c green,magenta,cyan \"npm:db\" \"npm:dev:api\" \"npm:dev:web\""
+    "dev:all": "concurrently -n db,api,web -c green,magenta,cyan \"npm:db\" \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace server",
+    "dev:web": "npm run dev --workspace client",
+    "db": "npm run db --workspace server",
+    "build": "npm run build --workspace client",
+    "start": "npm start --workspace server",
+    "test": "npm test --workspace server"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "engines": {
+    "node": ">=20"
   }
 }

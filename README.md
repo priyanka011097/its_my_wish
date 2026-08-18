@@ -4,8 +4,12 @@ Custom wishlist boards. Sign in with Google, create a board for any occasion, fi
 **photos**, **links** or **notes**, then share it with specific people by email or hand out a
 read-only link. Light and dark theme throughout.
 
+One npm workspace root, so a single `npm install` covers everything:
+
 ```
-wishlist/
+its-my-wish/
+├── api/index.js     Vercel serverless entry (wraps the Express app)
+├── vercel.json      build + routing for Vercel
 ├── server/          Express + Mongoose API
 │   ├── src/
 │   │   ├── config/  env + mongo connection
@@ -64,7 +68,7 @@ browser sees one origin and the session cookie just works.
 ## 4. Install and run
 
 ```bash
-npm run install:all     # root + server + client dependencies
+npm install             # one install covers root, server and client (npm workspaces)
 npm run dev:all         # local MongoDB + API on :4000 + web app on :5173
 ```
 
@@ -89,6 +93,8 @@ database you name):
 SMOKE_MONGODB_URI=mongodb://127.0.0.1:27017/wishlist_smoke npm test
 ```
 
+`npm run install:all` is gone — workspaces made it redundant.
+
 ## How it works
 
 **Auth.** The browser gets a Google ID token from the sign-in button and posts it to
@@ -111,7 +117,7 @@ description. Only public http(s) hosts are fetched (private and loopback address
 **Upload image**, or paste a URL. Uploads go into MongoDB itself through GridFS, so there is no S3
 bucket or Cloudinary account to set up and nothing extra to back up.
 
-- 5MB per image; JPEG, PNG, GIF, WebP, AVIF and HEIC
+- 4MB per image by default (`MAX_UPLOAD_MB`); JPEG, PNG, GIF, WebP, AVIF and HEIC
 - the file type is read from the leading bytes, not the browser's claim, so a renamed script cannot
   be stored as a photo — and SVG is refused outright because it can carry script
 - stored images live at `/api/uploads/<token>`, where the token is 24 random bytes. That URL needs no
@@ -152,15 +158,51 @@ in `localStorage`. Palettes live in `client/src/theme/theme.js`.
 | `PATCH` `DELETE` | `/api/wishes/:id` | owner |
 | `GET` | `/api/share/:token` | public when link sharing is on |
 | `GET` | `/api/meta/preview?url=` | signed in |
-| `POST` | `/api/uploads` | signed in — multipart `file`, max 5MB |
+| `POST` | `/api/uploads` | signed in — multipart `file` |
 | `GET` | `/api/uploads/:token` | public (unguessable token) |
 
-## Deploying
+## Deploying to Vercel
 
-1. Set on the API host: `NODE_ENV=production`, `MONGODB_URI`, `GOOGLE_CLIENT_ID`, `JWT_SECRET`,
+The repo is set up for it: `vercel.json` builds the client as a static site and runs the Express API
+as one serverless function ([api/index.js](api/index.js)), both on the same domain — so the session
+cookie needs no special handling.
+
+1. **Import the repo** in Vercel. Leave the build settings alone; `vercel.json` supplies them
+   (`npm install`, `npm run build`, output `client/dist`).
+2. **Use MongoDB Atlas** — a local `mongod` is not reachable from Vercel. In Atlas, add `0.0.0.0/0`
+   to **Network Access**: Vercel functions do not have fixed IPs.
+3. **Set Environment Variables** in the Vercel project (Settings → Environment Variables):
+
+   | Variable | Value |
+   | --- | --- |
+   | `MONGODB_URI` | your Atlas connection string, including the database name |
+   | `GOOGLE_CLIENT_ID` | same client id, or a separate one for production |
+   | `JWT_SECRET` | a fresh long random string — not the one from local dev |
+   | `MAX_UPLOAD_MB` | optional, defaults to `4`; see the limit note below |
+
+   `NODE_ENV` and `VERCEL` are set by Vercel itself. `CLIENT_ORIGIN` is not needed, since the web app
+   and API share a domain.
+4. **Add the deployed origin to Google** — `https://your-app.vercel.app` under the OAuth client's
+   **Authorised JavaScript origins**, alongside `http://localhost:5173`. Sign-in fails until you do.
+
+Two things to know about running the API serverless:
+
+- **Uploads are capped at 4MB**, not by us but by Vercel: a serverless function request body cannot
+  exceed 4.5MB. `MAX_UPLOAD_MB` sets the limit, the API advertises it through `/api/config`, and the
+  upload field shows and enforces whatever the server reports.
+- **A cold start pays for one database connection.** The handler caches the connection on the
+  instance and every request awaits the same promise, so warm requests reuse it instead of opening a
+  connection per request — which is what exhausts an Atlas connection limit.
+
+### Deploying anywhere with a long-running process
+
+Render, Railway, Fly, a VPS — anywhere Node just runs — is simpler, has no body-size cap and no cold
+starts:
+
+1. Set `NODE_ENV=production`, `MONGODB_URI`, `GOOGLE_CLIENT_ID`, `JWT_SECRET`, and
    `CLIENT_ORIGIN=https://your-domain`.
-2. `npm run build`, then `npm start` — Express serves `client/dist` alongside `/api`, so one origin
-   and the default `COOKIE_SAMESITE=lax` is right.
-3. If instead you host the web app and the API on **different domains**, set `COOKIE_SAMESITE=none`
-   (HTTPS required) and point the client at the API with `VITE_API_BASE=https://api.your-domain`.
-4. Add the production origin to the Google OAuth client's authorised JavaScript origins.
+2. `npm install && npm run build`, then `npm start`. Express serves `client/dist` next to `/api`
+   (that is what `SERVE_CLIENT` controls — it defaults on for a production process, off on Vercel).
+3. Add the production origin to the Google OAuth client.
+4. Hosting the web app and API on **different** domains instead? Set `COOKIE_SAMESITE=none` (HTTPS
+   required) and build the client with `VITE_API_BASE=https://api.your-domain`.

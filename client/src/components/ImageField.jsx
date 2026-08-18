@@ -16,8 +16,8 @@ import DeleteIcon from '@mui/icons-material/DeleteOutlineRounded'
 import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded'
 import { endpoints } from '../api/client'
 import { useToast } from '../context/ToastContext'
+import { useAuth } from '../context/AuthContext'
 
-const MAX_BYTES = 5 * 1024 * 1024
 const ACCEPT = 'image/jpeg,image/png,image/gif,image/webp,image/avif,image/heic,image/heif'
 
 const isUploaded = (value) => typeof value === 'string' && value.startsWith('/api/uploads/')
@@ -29,6 +29,9 @@ const isUploaded = (value) => typeof value === 'string' && value.startsWith('/ap
 export default function ImageField({ value, onChange, label = 'Image', required = false, error = '', disabled = false }) {
   const theme = useTheme()
   const { toast } = useToast()
+  // The server owns the limit (it is lower on serverless hosts), so read it from there.
+  const { maxUploadBytes } = useAuth()
+  const limitLabel = `${+(maxUploadBytes / 1024 / 1024).toFixed(1)}MB`
   const inputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -41,8 +44,8 @@ export default function ImageField({ value, onChange, label = 'Image', required 
       toast('That file is not an image', 'error')
       return
     }
-    if (file.size > MAX_BYTES) {
-      toast(`Images must be ${MAX_BYTES / 1024 / 1024}MB or smaller - that one is ${(file.size / 1024 / 1024).toFixed(1)}MB`, 'error')
+    if (file.size > maxUploadBytes) {
+      toast(`Images must be ${limitLabel} or smaller - that one is ${(file.size / 1024 / 1024).toFixed(1)}MB`, 'error')
       return
     }
 
@@ -112,7 +115,7 @@ export default function ImageField({ value, onChange, label = 'Image', required 
           <Typography variant="caption" color="text.secondary">
             {label}
             {required ? ' (required)' : ' (optional)'} &mdash; drag a file here, or paste a link below. JPEG, PNG, GIF,
-            WebP, AVIF or HEIC up to 5MB.
+            WebP, AVIF or HEIC up to {limitLabel}.
           </Typography>
         </Stack>
 
