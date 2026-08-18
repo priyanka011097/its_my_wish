@@ -1,4 +1,4 @@
-# Wishlist
+# It's My Wish
 
 Custom wishlist boards. Sign in with Google, create a board for any occasion, fill it with
 **photos**, **links** or **notes**, then share it with specific people by email or hand out a

@@ -37,8 +37,8 @@ function Logo() {
       >
         🎁
       </Box>
-      <Typography variant="h6" sx={{ letterSpacing: '-0.02em' }}>
-        Wishlist
+      <Typography variant="h6" noWrap sx={{ letterSpacing: '-0.02em' }}>
+        It&rsquo;s My Wish
       </Typography>
     </Stack>
   )
