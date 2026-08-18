@@ -1,4 +1,5 @@
 import { badRequest } from './errors.js'
+import { UPLOAD_PATH_PREFIX, isUploadUrl, tokenFromUrl } from './uploads.js'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
@@ -28,6 +29,20 @@ export function normalizeUrl(value, field = 'url', { required = false } = {}) {
     throw badRequest(`That ${field} does not look like a valid link`, { field })
   }
   return parsed.toString()
+}
+
+/**
+ * An image can be an external link or one of our own uploads, which is stored as
+ * the relative path /api/uploads/<token> so it keeps working across origins.
+ */
+export function normalizeImageUrl(value, field = 'image link') {
+  const raw = String(value ?? '').trim()
+  if (isUploadUrl(raw)) {
+    const token = tokenFromUrl(raw)
+    if (!token) throw badRequest('That uploaded image reference is not valid', { field })
+    return `${UPLOAD_PATH_PREFIX}${token}`
+  }
+  return normalizeUrl(raw, field)
 }
 
 export function normalizeTags(input) {

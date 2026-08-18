@@ -33,12 +33,42 @@ async function request(method, path, body, { params } = {}) {
   return payload
 }
 
+// Multipart upload: no content-type header, so the browser sets the boundary itself.
+async function upload(path, file, { onProgress } = {}) {
+  const form = new FormData()
+  form.append('file', file)
+
+  // XHR rather than fetch, because it reports progress for large images.
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', `${BASE}${path}`)
+    request.withCredentials = true
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
+    }
+    request.onload = () => {
+      let payload = null
+      try {
+        payload = JSON.parse(request.responseText)
+      } catch {
+        payload = null
+      }
+      if (request.status >= 200 && request.status < 300) resolve(payload)
+      else reject(new ApiError(request.status, payload?.error || 'Upload failed', payload?.details))
+    }
+    request.onerror = () => reject(new ApiError(0, 'Cannot reach the server. Is the API running?'))
+    request.onabort = () => reject(new ApiError(0, 'Upload cancelled'))
+    request.send(form)
+  })
+}
+
 export const api = {
   get: (path, options) => request('GET', path, undefined, options),
   post: (path, body, options) => request('POST', path, body ?? {}, options),
   put: (path, body, options) => request('PUT', path, body ?? {}, options),
   patch: (path, body, options) => request('PATCH', path, body ?? {}, options),
   del: (path, options) => request('DELETE', path, undefined, options),
+  upload,
 }
 
 export const endpoints = {
@@ -63,4 +93,5 @@ export const endpoints = {
 
   sharedBoard: (token) => api.get(`/api/share/${token}`),
   linkPreview: (url) => api.get('/api/meta/preview', { params: { url } }),
+  uploadImage: (file, options) => api.upload('/api/uploads', file, options),
 }

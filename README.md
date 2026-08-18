@@ -100,12 +100,25 @@ of three types, and the "add wish" dialog only insists on what that type needs:
 
 | Type | Required | Also stores |
 | --- | --- | --- |
-| `photo` | image URL | buy link, note, price, priority, tags |
-| `link` | link URL | image URL, note, price, priority, tags |
+| `photo` | an image (uploaded or linked) | buy link, note, price, priority, tags |
+| `link` | link URL | image, note, price, priority, tags |
 | `note` | note text | price, priority, tags |
 
 For link wishes, **Fetch** reads the page's Open Graph tags and prefills the title, image, price and
 description. Only public http(s) hosts are fetched (private and loopback addresses are refused).
+
+**Images.** Every image field takes either an upload or a link — drag a file onto the field, press
+**Upload image**, or paste a URL. Uploads go into MongoDB itself through GridFS, so there is no S3
+bucket or Cloudinary account to set up and nothing extra to back up.
+
+- 5MB per image; JPEG, PNG, GIF, WebP, AVIF and HEIC
+- the file type is read from the leading bytes, not the browser's claim, so a renamed script cannot
+  be stored as a photo — and SVG is refused outright because it can carry script
+- stored images live at `/api/uploads/<token>`, where the token is 24 random bytes. That URL needs no
+  sign-in, because people holding a share link have to be able to see the pictures; the token is
+  what keeps it private, so treat it as a secret the way you would the share link itself
+- when a wish is deleted, or its image swapped for another, the old file is removed from GridFS
+  rather than left orphaned
 
 **Sharing.** Two independent switches per board:
 
@@ -139,6 +152,8 @@ in `localStorage`. Palettes live in `client/src/theme/theme.js`.
 | `PATCH` `DELETE` | `/api/wishes/:id` | owner |
 | `GET` | `/api/share/:token` | public when link sharing is on |
 | `GET` | `/api/meta/preview?url=` | signed in |
+| `POST` | `/api/uploads` | signed in — multipart `file`, max 5MB |
+| `GET` | `/api/uploads/:token` | public (unguessable token) |
 
 ## Deploying
 

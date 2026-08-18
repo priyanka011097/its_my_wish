@@ -47,6 +47,21 @@ async function call(method, path, { token, body } = {}) {
   return { status: response.status, body: payload }
 }
 
+// Smallest valid files we can post: a real 1x1 GIF, and a text file wearing an image name.
+const GIF_BYTES = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64')
+
+async function callUpload(path, { token, bytes, filename, type }) {
+  const form = new FormData()
+  form.append('file', new Blob([bytes], { type }), filename)
+  const response = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+    body: form,
+  })
+  const payload = await response.json().catch(() => null)
+  return { status: response.status, body: payload }
+}
+
 const checks = []
 const check = async (name, fn) => {
   try {
@@ -239,6 +254,103 @@ await check('owner edits and deletes a wish', async () => {
 
   const board = await call('GET', `/api/boards/${boardId}`, { token: ownerToken })
   assert.equal(board.body.wishes.length, 2)
+})
+
+let uploadUrl
+await check('anonymous callers cannot upload', async () => {
+  const res = await callUpload('/api/uploads', { bytes: GIF_BYTES, filename: 'a.gif', type: 'image/gif' })
+  assert.equal(res.status, 401)
+})
+
+await check('a non-image is refused even with an image mime type', async () => {
+  const res = await callUpload('/api/uploads', {
+    token: ownerToken,
+    bytes: Buffer.from('this is a shell script, not an image at all'),
+    filename: 'evil.png',
+    type: 'image/png',
+  })
+  assert.equal(res.status, 400)
+  assert.match(res.body.error, /not an image/i)
+})
+
+await check('an SVG is refused (it can carry script)', async () => {
+  const res = await callUpload('/api/uploads', {
+    token: ownerToken,
+    bytes: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
+    filename: 'x.svg',
+    type: 'image/svg+xml',
+  })
+  assert.equal(res.status, 400)
+})
+
+await check('owner uploads an image and gets an unguessable URL', async () => {
+  const res = await callUpload('/api/uploads', { token: ownerToken, bytes: GIF_BYTES, filename: 'wish.gif', type: 'image/gif' })
+  assert.equal(res.status, 201)
+  assert.equal(res.body.upload.contentType, 'image/gif')
+  assert.match(res.body.upload.url, /^\/api\/uploads\/[A-Za-z0-9_-]{16,}$/)
+  assert.ok(res.body.upload.size > 0)
+  uploadUrl = res.body.upload.url
+})
+
+await check('the stored image is served to anyone, with the right bytes and type', async () => {
+  const response = await fetch(`${base}${uploadUrl}`)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'image/gif')
+  assert.match(response.headers.get('cache-control'), /immutable/)
+  const body = Buffer.from(await response.arrayBuffer())
+  assert.deepEqual(body, GIF_BYTES, 'served bytes should match what was uploaded')
+})
+
+await check('an unknown image token 404s', async () => {
+  const response = await fetch(`${base}/api/uploads/${'z'.repeat(32)}`)
+  assert.equal(response.status, 404)
+})
+
+let uploadedWishId
+await check('a wish accepts an uploaded image', async () => {
+  const res = await call('POST', `/api/boards/${boardId}/wishes`, {
+    token: ownerToken,
+    body: { type: 'photo', title: 'Uploaded picture', imageUrl: uploadUrl },
+  })
+  assert.equal(res.status, 201)
+  assert.equal(res.body.wish.imageUrl, uploadUrl, 'the relative upload path is kept as-is')
+  uploadedWishId = res.body.wish.id
+})
+
+await check('a made-up upload path is rejected', async () => {
+  const res = await call('POST', `/api/boards/${boardId}/wishes`, {
+    token: ownerToken,
+    body: { type: 'photo', title: 'Nope', imageUrl: '/api/uploads/short' },
+  })
+  assert.equal(res.status, 400)
+})
+
+await check('deleting the wish deletes its stored image', async () => {
+  const del = await call('DELETE', `/api/wishes/${uploadedWishId}`, { token: ownerToken })
+  assert.equal(del.status, 200)
+  const response = await fetch(`${base}${uploadUrl}`)
+  assert.equal(response.status, 404, 'the file should be gone from GridFS, not orphaned')
+})
+
+await check('replacing an uploaded image cleans up the old file', async () => {
+  const first = await callUpload('/api/uploads', { token: ownerToken, bytes: GIF_BYTES, filename: 'one.gif', type: 'image/gif' })
+  const wish = await call('POST', `/api/boards/${boardId}/wishes`, {
+    token: ownerToken,
+    body: { type: 'photo', title: 'Swap me', imageUrl: first.body.upload.url },
+  })
+  assert.equal(wish.status, 201)
+
+  const patch = await call('PATCH', `/api/wishes/${wish.body.wish.id}`, {
+    token: ownerToken,
+    body: { imageUrl: 'https://images.example.com/external.jpg' },
+  })
+  assert.equal(patch.status, 200)
+  assert.equal(patch.body.wish.imageUrl, 'https://images.example.com/external.jpg')
+
+  const gone = await fetch(`${base}${first.body.upload.url}`)
+  assert.equal(gone.status, 404)
+
+  await call('DELETE', `/api/wishes/${wish.body.wish.id}`, { token: ownerToken })
 })
 
 await check('deleting a board removes its wishes too', async () => {

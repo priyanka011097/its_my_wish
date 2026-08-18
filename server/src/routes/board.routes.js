@@ -6,6 +6,7 @@ import { requireAuth } from '../lib/auth.js'
 import { asyncHandler, badRequest } from '../lib/errors.js'
 import { loadBoardFor, loadOwnedBoard, OWNER } from '../lib/access.js'
 import { normalizeEmails, trimmed } from '../lib/validate.js'
+import { deleteUploadByUrl } from '../lib/uploads.js'
 import { createWish, listWishes } from './wish.routes.js'
 
 const router = Router()
@@ -99,8 +100,10 @@ router.delete(
   requireAuth,
   asyncHandler(async (req, res) => {
     const board = await loadOwnedBoard(req, req.params.id)
+    const images = await Wish.find({ board: board.id }).select('imageUrl').lean()
     await Wish.deleteMany({ board: board.id })
     await board.deleteOne()
+    await Promise.all(images.map((w) => deleteUploadByUrl(w.imageUrl)))
     res.json({ ok: true })
   }),
 )

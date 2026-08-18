@@ -3,7 +3,8 @@ import { Board } from '../models/Board.js'
 import { PRIORITIES, Wish, WISH_TYPES } from '../models/Wish.js'
 import { requireAuth } from '../lib/auth.js'
 import { asyncHandler, badRequest, forbidden, notFound } from '../lib/errors.js'
-import { normalizeTags, normalizeUrl, trimmed } from '../lib/validate.js'
+import { normalizeImageUrl, normalizeTags, normalizeUrl, trimmed } from '../lib/validate.js'
+import { deleteUploadByUrl } from '../lib/uploads.js'
 
 const router = Router()
 
@@ -26,7 +27,7 @@ function readWishBody(body, existing) {
   if (has('note') || !existing) patch.note = trimmed(body.note, 2000)
   if (has('price') || !existing) patch.price = trimmed(body.price, 40)
   if (has('url') || !existing) patch.url = normalizeUrl(body.url, 'link')
-  if (has('imageUrl') || !existing) patch.imageUrl = normalizeUrl(body.imageUrl, 'image link')
+  if (has('imageUrl') || !existing) patch.imageUrl = normalizeImageUrl(body.imageUrl)
   if (has('tags') || !existing) patch.tags = normalizeTags(body.tags)
   if (has('priority') || !existing) {
     const priority = body.priority ?? 'medium'
@@ -70,8 +71,11 @@ router.patch(
   requireAuth,
   asyncHandler(async (req, res) => {
     const { wish, board } = await loadOwnWish(req)
+    const previousImage = wish.imageUrl
     Object.assign(wish, readWishBody(req.body, wish))
     await wish.save()
+    // An upload that is no longer referenced would just sit in the database.
+    if (previousImage !== wish.imageUrl) await deleteUploadByUrl(previousImage)
     await Board.updateOne({ _id: board.id }, { $currentDate: { updatedAt: true } })
     res.json({ wish: wish.toPublic() })
   }),
@@ -83,6 +87,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     const { wish, board } = await loadOwnWish(req)
     await wish.deleteOne()
+    await deleteUploadByUrl(wish.imageUrl)
     await Board.updateOne({ _id: board.id }, { $currentDate: { updatedAt: true } })
     res.json({ ok: true })
   }),

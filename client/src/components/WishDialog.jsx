@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Dialog from '@mui/material/Dialog'
@@ -12,14 +11,13 @@ import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import { alpha, useTheme } from '@mui/material/styles'
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHighRounded'
 import PhotoIcon from '@mui/icons-material/ImageRounded'
 import LinkIcon from '@mui/icons-material/LinkRounded'
 import NoteIcon from '@mui/icons-material/StickyNote2Rounded'
 import { endpoints } from '../api/client'
 import { useToast } from '../context/ToastContext'
+import ImageField from './ImageField'
 
 const TYPES = [
   { value: 'photo', label: 'Photo', icon: <PhotoIcon fontSize="small" /> },
@@ -31,17 +29,14 @@ const EMPTY = { type: 'photo', title: '', imageUrl: '', url: '', note: '', price
 
 /** Add or edit a wish. The tab picks which fields matter: image, link or note text. */
 export default function WishDialog({ open, wish, busy = false, onClose, onSubmit }) {
-  const theme = useTheme()
   const { toast } = useToast()
   const [form, setForm] = useState(EMPTY)
   const [errors, setErrors] = useState({})
   const [fetching, setFetching] = useState(false)
-  const [imageFailed, setImageFailed] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setErrors({})
-    setImageFailed(false)
     setForm(
       wish
         ? {
@@ -62,7 +57,6 @@ export default function WishDialog({ open, wish, busy = false, onClose, onSubmit
     const { value } = event.target
     setForm((f) => ({ ...f, [key]: value }))
     setErrors((e) => ({ ...e, [key]: '' }))
-    if (key === 'imageUrl') setImageFailed(false)
   }
 
   // Pull the title/image/price a shop page advertises so the form fills itself in.
@@ -79,7 +73,6 @@ export default function WishDialog({ open, wish, busy = false, onClose, onSubmit
         price: f.price || preview.price || '',
         note: f.note || preview.description || '',
       }))
-      setImageFailed(false)
       if (!preview.title && !preview.imageUrl) toast('That site did not share any preview details', 'info')
     } catch (err) {
       toast(err.message, 'error')
@@ -91,7 +84,7 @@ export default function WishDialog({ open, wish, busy = false, onClose, onSubmit
   const validate = () => {
     const next = {}
     if (!form.title.trim()) next.title = 'Give this wish a name'
-    if (form.type === 'photo' && !form.imageUrl.trim()) next.imageUrl = 'Paste an image link'
+    if (form.type === 'photo' && !form.imageUrl.trim()) next.imageUrl = 'Upload a photo or paste an image link'
     if (form.type === 'link' && !form.url.trim()) next.url = 'Paste the link'
     if (form.type === 'note' && !form.note.trim()) next.note = 'Write the note'
     setErrors(next)
@@ -183,43 +176,17 @@ export default function WishDialog({ open, wish, busy = false, onClose, onSubmit
             />
 
             {showImageField && (
-              <TextField
-                label={form.type === 'photo' ? 'Image link' : 'Image link (optional)'}
-                placeholder="https://images.example.com/photo.jpg"
+              <ImageField
+                label={form.type === 'photo' ? 'Photo' : 'Picture of it'}
+                required={form.type === 'photo'}
                 value={form.imageUrl}
-                onChange={set('imageUrl')}
-                error={Boolean(errors.imageUrl)}
-                helperText={errors.imageUrl || ' '}
-                fullWidth
-              />
-            )}
-
-            {form.imageUrl.trim() && (
-              <Box
-                sx={{
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                  border: `1px solid ${theme.palette.divider}`,
-                  bgcolor: alpha(theme.palette.primary.main, 0.05),
-                  display: 'grid',
-                  placeItems: 'center',
-                  minHeight: 120,
+                error={errors.imageUrl}
+                disabled={busy}
+                onChange={(next) => {
+                  setForm((f) => ({ ...f, imageUrl: next }))
+                  setErrors((e) => ({ ...e, imageUrl: '' }))
                 }}
-              >
-                {imageFailed ? (
-                  <Typography variant="caption" color="text.secondary" sx={{ p: 2 }}>
-                    That image link could not be loaded &mdash; check the URL.
-                  </Typography>
-                ) : (
-                  <Box
-                    component="img"
-                    src={form.imageUrl.trim()}
-                    alt="Preview"
-                    onError={() => setImageFailed(true)}
-                    sx={{ maxHeight: 200, width: '100%', objectFit: 'cover', display: 'block' }}
-                  />
-                )}
-              </Box>
+              />
             )}
 
             <TextField
